@@ -1,0 +1,412 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// RBAC Permission Structure
+
+enum Permission {
+  CREATE_CATEGORY
+  READ_CATEGORY
+  UPDATE_CATEGORY
+  DELETE_CATEGORY
+  CREATE_CONTENT
+  READ_CONTENT
+  UPDATE_CONTENT
+  DELETE_CONTENT
+  CREATE_SIMULATION
+  READ_SIMULATION
+  UPDATE_SIMULATION
+  DELETE_SIMULATION
+  CREATE_QUIZ
+  READ_QUIZ
+  UPDATE_QUIZ
+  DELETE_QUIZ
+  MANAGE_USERS
+  VIEW_LOGS
+}
+
+enum UserRole {
+  ADMIN
+  MODERATOR
+  GUEST
+  USER
+}
+
+enum QuestionType {
+  RADIO
+  CHECKBOX
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  sessions      Session[]
+  accounts      Account[]
+
+  // RBAC relationships
+  userRoleAssignments UserRoleAssignment[]
+  permissions         UserPermission[]
+
+  // Content relationships
+  categoriesCreated      Category[]       @relation("CategoryCreatedBy")
+  categoriesUpdated      Category[]       @relation("CategoryUpdatedBy")
+  contentsCreated        Content[]        @relation("ContentCreatedBy")
+  contentsUpdated        Content[]        @relation("ContentUpdatedBy")
+  simulationsCreated     Simulation[]     @relation("SimulationCreatedBy")
+  simulationsUpdated     Simulation[]     @relation("SimulationUpdatedBy")
+  simulationStepsCreated SimulationStep[] @relation("SimulationStepCreatedBy")
+  simulationStepsUpdated SimulationStep[] @relation("SimulationStepUpdatedBy")
+  quizzesCreated         Quiz[]           @relation("QuizCreatedBy")
+  quizzesUpdated         Quiz[]           @relation("QuizUpdatedBy")
+  questionsCreated       Question[]       @relation("QuestionCreatedBy")
+  questionsUpdated       Question[]       @relation("QuestionUpdatedBy")
+  questionOptionsCreated QuestionOption[] @relation("QuestionOptionCreatedBy")
+  questionOptionsUpdated QuestionOption[] @relation("QuestionOptionUpdatedBy")
+
+  // Accountability
+  accountabilityLogs AccountabilityLog[]
+
+  @@unique([email])
+  @@map("users")
+}
+
+// RBAC Role model
+
+model Role {
+  id          Int       @id @default(autoincrement())
+  name        UserRole  @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime? @updatedAt
+
+  // Relationships
+  userRoleAssignments UserRoleAssignment[]
+  rolePermissions     RolePermission[]
+
+  @@map("roles")
+}
+
+// User-Role many-to-many relationship
+
+model UserRoleAssignment {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  roleId    Int
+  createdAt DateTime @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@map("user_role_assignments")
+}
+
+// Role-Permission many-to-many relationship
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Permission
+  createdAt    DateTime   @default(now())
+
+  // Relationships
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// User-Permission direct assignment (for special cases)
+
+model UserPermission {
+  id           Int        @id @default(autoincrement())
+  userId       String
+  permissionId Permission
+  createdAt    DateTime   @default(now())
+
+  // Relationships
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, permissionId])
+  @@map("user_permissions")
+}
+
+// Accountability Log
+
+model AccountabilityLog {
+  id      Int      @id @default(autoincrement())
+  whoId   String?
+  what    String?
+  action  String
+  payload String?
+  when    DateTime @default(now())
+
+  // Relationships
+  who User? @relation(fields: [whoId], references: [id])
+
+  @@map("accountability_logs")
+}
+
+// Category model
+
+model Category {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  title           String
+  description     String // Rich text stored as string
+  thumbnail       String? // URL
+  slug            String    @unique
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy     User         @relation("CategoryCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy User         @relation("CategoryUpdatedBy", fields: [lastUpdatedById], references: [id])
+  contents      Content[]
+  simulations   Simulation[]
+  quizzes       Quiz[]
+
+  @@map("categories")
+}
+
+// Content model
+
+model Content {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  categoryId      Int
+  title           String
+  description     String // Rich text stored as string
+  thumbnail       String? // URL
+  slug            String    @unique
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy     User     @relation("ContentCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy User     @relation("ContentUpdatedBy", fields: [lastUpdatedById], references: [id])
+  category      Category @relation(fields: [categoryId], references: [id])
+  quizzes       Quiz[]
+
+  @@map("contents")
+}
+
+// Simulation model
+
+model Simulation {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  categoryId      Int
+  title           String
+  description     String // Rich text stored as string
+  thumbnail       String? // URL
+  slug            String    @unique
+  startAt         Int
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy     User             @relation("SimulationCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy User             @relation("SimulationUpdatedBy", fields: [lastUpdatedById], references: [id])
+  category      Category         @relation(fields: [categoryId], references: [id])
+  steps         SimulationStep[]
+
+  @@map("simulations")
+}
+
+// SimulationStep model
+
+model SimulationStep {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  simulationId    Int
+  title           String
+  position        Int
+  content         String // Rich text stored as string
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy     User       @relation("SimulationStepCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy User       @relation("SimulationStepUpdatedBy", fields: [lastUpdatedById], references: [id])
+  simulation    Simulation @relation(fields: [simulationId], references: [id])
+
+  @@map("simulation_steps")
+}
+
+// Quiz model
+
+model Quiz {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  categoryId      Int
+  contentId       Int?
+  title           String
+  description     String // Rich text stored as string
+  thumbnail       String? // URL
+  slug            String    @unique
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy     User       @relation("QuizCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy User       @relation("QuizUpdatedBy", fields: [lastUpdatedById], references: [id])
+  category      Category   @relation(fields: [categoryId], references: [id])
+  content       Content?   @relation(fields: [contentId], references: [id])
+  questions     Question[]
+
+  @@map("quizzes")
+}
+
+// Question model
+
+model Question {
+  id              Int          @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  quizId          Int
+  title           String // Rich text stored as string
+  position        Int
+  type            QuestionType
+  createdAt       DateTime     @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime?    @updatedAt
+
+  // Relationships
+  createdBy      User                    @relation("QuestionCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy  User                    @relation("QuestionUpdatedBy", fields: [lastUpdatedById], references: [id])
+  quiz           Quiz                    @relation(fields: [quizId], references: [id])
+  options        QuestionOption[]
+  correctOptions CorrectQuestionOption[]
+  tips           QuestionTip[]
+
+  @@map("questions")
+}
+
+// QuestionOption model
+
+model QuestionOption {
+  id              Int       @id @default(autoincrement())
+  createdById     String
+  lastUpdatedById String
+  questionId      Int
+  title           String // Rich text stored as string
+  position        Int
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  updatedAt       DateTime? @updatedAt
+
+  // Relationships
+  createdBy      User                    @relation("QuestionOptionCreatedBy", fields: [createdById], references: [id])
+  lastUpdatedBy  User                    @relation("QuestionOptionUpdatedBy", fields: [lastUpdatedById], references: [id])
+  question       Question                @relation(fields: [questionId], references: [id])
+  correctOptions CorrectQuestionOption[]
+
+  @@map("question_options")
+}
+
+// CorrectQuestionOption model (many-to-many relationship)
+
+model CorrectQuestionOption {
+  questionId       Int
+  questionOptionId Int
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+  updatedAt        DateTime? @updatedAt
+
+  // Relationships
+  question       Question       @relation(fields: [questionId], references: [id])
+  questionOption QuestionOption @relation(fields: [questionOptionId], references: [id])
+
+  @@id([questionId, questionOptionId])
+  @@map("correct_question_options")
+}
+
+// QuestionTip model
+
+model QuestionTip {
+  id          Int       @id @default(autoincrement())
+  questionId  Int
+  title       String
+  description String // Rich text stored as string
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+  updatedAt   DateTime? @updatedAt
+
+  // Relationships
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@map("question_tips")
+}
+
+// Better Auth models
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}

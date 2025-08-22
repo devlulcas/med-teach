@@ -1,0 +1,9 @@
+{
+  "name": "med-teach",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev"
+  },
+  "packageManager": "pnpm@10.12.1"
+}
