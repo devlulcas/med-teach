@@ -1,9 +1,10 @@
 - [x] setup database
 - [x] setup auth
 - [x] ui lib
+- [x] header básico com navegação
 - [ ] crud accountability_log
-- [ ] crud user
 - [ ] crud category
+- [ ] crud de imagens
 
 
 ```sh

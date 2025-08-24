@@ -6,4 +6,6 @@
 
 body {
   @apply min-h-screen;
+
+  --header-height: 4rem;
 }
