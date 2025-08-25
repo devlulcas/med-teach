@@ -6,8 +6,8 @@ import { useNavigate } from "react-router";
 import { z } from "zod";
 import Logo from "~/assets/logo";
 import { AnimatedAlert } from "~/components/animated-alert";
+import { useFormStuff } from "~/hooks/use-form-stuff";
 import { authClient } from "~/lib/auth/better-auth-client";
-import { zodErrorToFormErrors } from "~/lib/helpers/zod-error-to-form-errors";
 
 export default function SignIn() {
   return (
@@ -22,73 +22,45 @@ const signInSchema = z.object({
   password: z.string().min(8),
 });
 
-type SignInSchema = z.infer<typeof signInSchema>;
-
 function SignInForm() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState<string | null>(null);
-  const [formSchemaError, setFormSchemaError] =
-    useState<z.ZodError<SignInSchema> | null>(null);
+
+  const form = useFormStuff({ schema: signInSchema });
 
   const resetForm = () => {
-    setGeneralError(null);
-    setFormSchemaError(null);
+    form.clearErrors();
     setShowPassword(false);
   };
 
-  const signIn: React.FormEventHandler<HTMLFormElement> = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const signIn = form.createHandleSubmit(async (data) => {
+    const result = await authClient.signIn.email({
+      email: data.email,
+      password: data.password,
+    });
 
-    const data = Object.fromEntries(new FormData(e.currentTarget));
-    const result = signInSchema.safeParse(data);
-
-    if (!result.success) {
-      setFormSchemaError(result.error);
-      return;
+    if (result.error) {
+      const message = result.error.message ?? "Erro ao fazer login";
+      throw new Error(message);
     }
 
-    await authClient.signIn.email(
-      {
-        email: result.data.email,
-        password: result.data.password,
-      },
-      {
-        onRequest: (_ctx) => {
-          setIsLoading(true);
-          resetForm();
-        },
-        onResponse: (_ctx) => {
-          setIsLoading(false);
-        },
-        onSuccess: (_ctx) => {
-          addToast({
-            title: "Login realizado com sucesso",
-            description: "Você já pode fazer login",
-            color: "success",
-            timeout: 3000,
-          });
+    addToast({
+      title: "Login realizado com sucesso",
+      description: "Você já pode fazer login",
+      color: "success",
+      timeout: 3000,
+    });
 
-          resetForm();
-          navigate("/");
-        },
-        onError: (ctx) => {
-          setGeneralError(ctx.error.message);
-        },
-      }
-    );
-  };
-
-  const formErrors = zodErrorToFormErrors(formSchemaError);
+    resetForm();
+    navigate("/");
+  });
 
   return (
     <Form
       onSubmit={signIn}
       onReset={resetForm}
       className="flex flex-col gap-4 w-full max-w-md"
-      validationErrors={formErrors}
+      validationErrors={form.formErrors}
     >
       <h1 className="text-2xl font-bold flex items-center gap-2 mb-4">
         <Logo className="w-8 h-8 shrink-0 inline-block" />
@@ -96,9 +68,9 @@ function SignInForm() {
       </h1>
 
       <AnimatePresence mode="wait">
-        {generalError !== null && (
+        {form.generalError !== null && (
           <AnimatedAlert color="danger" title="Erro ao fazer login">
-            {generalError}
+            {form.generalError}
           </AnimatedAlert>
         )}
       </AnimatePresence>
@@ -139,7 +111,7 @@ function SignInForm() {
       <div className="flex gap-2 mt-4 w-full">
         <Button
           type="button"
-          disabled={isLoading}
+          disabled={form.isSubmitting}
           variant="flat"
           isIconOnly
           aria-label="Voltar para a página inicial"
@@ -152,14 +124,14 @@ function SignInForm() {
         <Button
           color="primary"
           type="submit"
-          isLoading={isLoading}
-          isDisabled={isLoading}
+          isLoading={form.isSubmitting}
+          isDisabled={form.isSubmitting}
           className="w-full"
           endContent={<FaArrowRight />}
         >
           Fazer login
         </Button>
-        <Button type="reset" disabled={isLoading} onPress={resetForm}>
+        <Button type="reset" disabled={form.isSubmitting} onPress={resetForm}>
           Limpar
         </Button>
       </div>

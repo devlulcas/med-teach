@@ -6,8 +6,8 @@ import { useNavigate } from "react-router";
 import { z } from "zod";
 import Logo from "~/assets/logo";
 import { AnimatedAlert } from "~/components/animated-alert";
+import { useFormStuff } from "~/hooks/use-form-stuff";
 import { authClient } from "~/lib/auth/better-auth-client";
-import { zodErrorToFormErrors } from "~/lib/helpers/zod-error-to-form-errors";
 
 export default function SignUp() {
   return (
@@ -23,74 +23,46 @@ const signUpSchema = z.object({
   password: z.string().min(8),
 });
 
-type SignUpSchema = z.infer<typeof signUpSchema>;
-
 function SignUpForm() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [generalError, setGeneralError] = useState<string | null>(null);
-  const [formSchemaError, setFormSchemaError] =
-    useState<z.ZodError<SignUpSchema> | null>(null);
+
+  const form = useFormStuff({ schema: signUpSchema });
 
   const resetForm = () => {
-    setGeneralError(null);
-    setFormSchemaError(null);
+    form.clearErrors();
     setShowPassword(false);
   };
 
-  const signUp: React.FormEventHandler<HTMLFormElement> = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const signUp = form.createHandleSubmit(async (data) => {
+    const result = await authClient.signUp.email({
+      email: data.email,
+      password: data.password,
+      name: data.name,
+    });
 
-    const data = Object.fromEntries(new FormData(e.currentTarget));
-    const result = signUpSchema.safeParse(data);
-
-    if (!result.success) {
-      setFormSchemaError(result.error);
-      return;
+    if (result.error) {
+      const message = result.error.message ?? "Erro ao cadastrar";
+      throw new Error(message);
     }
 
-    await authClient.signUp.email(
-      {
-        email: result.data.email,
-        password: result.data.password,
-        name: result.data.name,
-      },
-      {
-        onRequest: (_ctx) => {
-          setIsLoading(true);
-          resetForm();
-        },
-        onResponse: (_ctx) => {
-          setIsLoading(false);
-        },
-        onSuccess: (_ctx) => {
-          addToast({
-            title: "Cadastro realizado com sucesso",
-            description: "Você já pode fazer login",
-            color: "success",
-            timeout: 3000,
-          });
+    addToast({
+      title: "Cadastro realizado com sucesso",
+      description: "Você já pode fazer login",
+      color: "success",
+      timeout: 3000,
+    });
 
-          resetForm();
-          navigate("/");
-        },
-        onError: (ctx) => {
-          setGeneralError(ctx.error.message);
-        },
-      }
-    );
-  };
-
-  const formErrors = zodErrorToFormErrors(formSchemaError);
+    resetForm();
+    navigate("/");
+  });
 
   return (
     <Form
       onSubmit={signUp}
       onReset={resetForm}
       className="flex flex-col gap-4 w-full max-w-md"
-      validationErrors={formErrors}
+      validationErrors={form.formErrors}
     >
       <h1 className="text-2xl font-bold flex items-center gap-2 mb-4">
         <Logo className="w-8 h-8 shrink-0 inline-block" />
@@ -98,9 +70,9 @@ function SignUpForm() {
       </h1>
 
       <AnimatePresence mode="wait">
-        {generalError !== null && (
+        {form.generalError !== null && (
           <AnimatedAlert color="danger" title="Erro ao cadastrar">
-            {generalError}
+            {form.generalError}
           </AnimatedAlert>
         )}
       </AnimatePresence>
@@ -152,7 +124,7 @@ function SignUpForm() {
       <div className="flex gap-2 mt-4 w-full">
         <Button
           type="button"
-          disabled={isLoading}
+          disabled={form.isSubmitting}
           variant="flat"
           isIconOnly
           aria-label="Voltar para a página inicial"
@@ -165,14 +137,14 @@ function SignUpForm() {
         <Button
           color="primary"
           type="submit"
-          isLoading={isLoading}
-          isDisabled={isLoading}
+          isLoading={form.isSubmitting}
+          isDisabled={form.isSubmitting}
           className="w-full"
           endContent={<FaArrowRight />}
         >
           Cadastrar
         </Button>
-        <Button type="reset" disabled={isLoading} onPress={resetForm}>
+        <Button type="reset" disabled={form.isSubmitting} onPress={resetForm}>
           Limpar
         </Button>
       </div>

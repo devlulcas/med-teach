@@ -10,6 +10,15 @@ export type Fail = {
 
 export type Result<T = void> = Ok<T> | Fail;
 
+export function isResult<T>(value: unknown): value is Result<T> {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "type" in value &&
+    (value.type === "ok" || value.type === "fail")
+  );
+}
+
 export function ok<T>(value: T): Ok<T> {
   return { type: "ok", value };
 }

@@ -1,9 +1,8 @@
 import type { Prisma } from "@prisma/client";
-import z from "zod";
 import { authContext } from "~/context.js";
 import * as repository from "~/lib/accountability-log/repository/mod";
+import * as validation from "~/lib/accountability-log/validation/find-all.schema.js";
 import { authMiddleware } from "~/lib/auth/middleware.js";
-import { paginationSchema } from "~/lib/database/pagination";
 import { assertDefined } from "~/lib/helpers/general-assertions.js";
 import { fail, isFail } from "~/lib/helpers/result";
 import { serverLogger } from "~/lib/logger/logger.server.js";
@@ -13,38 +12,24 @@ export const unstable_middleware: Route.unstable_MiddlewareFunction[] = [
   authMiddleware,
 ];
 
-const getAccountabilityLogsSchema = z
-  .object({
-    search: z.string().optional(),
-    mode: z.enum(["AND", "OR"]).default("AND"),
-    orderBy: z
-      .union([z.literal("createdAt"), z.literal("updatedAt")])
-      .default("createdAt"),
-    orderDirection: z.enum(["asc", "desc"]).default("desc"),
-    who: z.string().optional(),
-    after: z.coerce.date().optional(),
-    before: z.coerce.date().optional(),
-  })
-  .extend(paginationSchema.shape);
-
 export async function loader({ request, context }: Route.LoaderArgs) {
   const auth = context.get(authContext);
   assertDefined(auth);
 
   const url = new URL(request.url);
 
-  const result = getAccountabilityLogsSchema.safeParse(url.searchParams);
+  const inputResult = validation.schema.safeParse(url.searchParams);
 
-  if (!result.success) {
+  if (!inputResult.success) {
     serverLogger.warn(
-      { error: result.error },
+      { error: inputResult.error },
       "Error parsing accountability logs query params"
     );
 
-    return fail(result.error.message);
+    return fail(inputResult.error.message);
   }
 
-  const { page, perPage, ...input } = result.data;
+  const { page, perPage, ...input } = inputResult.data;
 
   const where: Prisma.AccountabilityLogWhereInput = {
     [input.mode]: {

@@ -72,7 +72,10 @@ function UserNavbarContent() {
                 color="secondary"
                 name={session.data.user.name}
                 size="sm"
-                src={session.data.user.image ?? "/default-avatar.svg"}
+                src={session.data.user.image ?? undefined}
+                alt={session.data.user.name ?? undefined}
+                showFallback={true}
+                fallback={<FaUser className="size-4" />}
               />
             </div>
           </DropdownTrigger>
